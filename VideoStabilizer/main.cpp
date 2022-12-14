@@ -10,26 +10,6 @@ using namespace cv;
 
 struct TransformParam
 {
-	//TransformParam() {}
-
-	TransformParam(double _dx, double _dy, double _da)
-	{
-		dx = _dx;
-		dy = _dy;
-		da = _da;
-	}
-
-	void getTransform(Mat& T)
-	{
-		T.at<double>(0, 0) = cos(da);
-		T.at<double>(0, 1) = -sin(da);
-		T.at<double>(1, 0) = sin(da);
-		T.at<double>(1, 1) = cos(da);
-
-		T.at<double>(0, 2) = dx;
-		T.at<double>(1, 2) = dy;
-	}
-
 	double dx;
 	double dy;
 	double da;
@@ -37,17 +17,21 @@ struct TransformParam
 
 struct Trajectory
 {
-	Trajectory(double _x, double _y, double _a)
-	{
-		x = _x;
-		y = _y;
-		a = _a;
-	}
-
 	double x;
 	double y;
 	double a;
 };
+
+void getTransform(Mat& T, TransformParam tp)
+{
+	T.at<double>(0, 0) = cos(tp.da);
+	T.at<double>(0, 1) = -sin(tp.da);
+	T.at<double>(1, 0) = sin(tp.da);
+	T.at<double>(1, 1) = cos(tp.da);
+
+	T.at<double>(0, 2) = tp.dx;
+	T.at<double>(1, 2) = tp.dy;
+}
 
 vector<Trajectory> cumsum(vector<TransformParam>& transforms)
 {
@@ -64,7 +48,7 @@ vector<Trajectory> cumsum(vector<TransformParam>& transforms)
 		y += transforms[i].dy;
 		a += transforms[i].da;
 
-		trajectory.push_back(Trajectory(x, y, a));
+		trajectory.push_back({ x, y, a });
 	}
 
 	return trajectory;
@@ -96,7 +80,7 @@ vector<Trajectory> smooth(vector<Trajectory>& trajectory, int radius)
 		double avg_y = sum_y / count;
 		double avg_a = sum_a / count;
 
-		smoothed_trajectory.push_back(Trajectory(avg_x, avg_y, avg_a));
+		smoothed_trajectory.push_back({ avg_x, avg_y, avg_a });
 	}
 
 	return smoothed_trajectory;
@@ -189,7 +173,7 @@ int main()
 		double da = atan2(T.at<double>(1, 0), T.at<double>(0, 0));
 
 		// store transformation
-		transforms.push_back(TransformParam(dx, dy, da));
+		transforms.push_back({ dx, dy, da });
 
 		// move to next frame
 		curr_gray.copyTo(prev_gray);
@@ -214,7 +198,7 @@ int main()
 		double dy = transforms[i].dy + diff_y;
 		double da = transforms[i].da + diff_a;
 
-		transforms_smooth.push_back(TransformParam(dx, dy, da));
+		transforms_smooth.push_back({ dx, dy, da });
 	}
 
 	// 5. apply smoothed camera motion to frames
@@ -228,8 +212,8 @@ int main()
 		if (!success)
 			break;
 
-		// extract transform from transation and rotation angle
-		transforms_smooth[i].getTransform(T);
+		// extract transform from translation and rotation angle
+		getTransform(T, transforms_smooth[i]);
 
 		// apply affine wrapping to the given frame
 		warpAffine(frame, frame_stabilized, T, frame.size());
